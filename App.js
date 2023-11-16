@@ -1,64 +1,88 @@
 import React, { useState, useEffect } from 'react';
-import { Text, View, StyleSheet, Button } from 'react-native';
+import { Text, View, StyleSheet, Button, TextInput } from 'react-native';
 import { BarCodeScanner } from 'expo-barcode-scanner';
+import * as FileSystem from 'expo-file-system';
 
 export default function App() {
-  // Definición de estados
-  const [hasPermission, setHasPermission] = useState(null); // Estado para almacenar el permiso de la cámara
-  const [scanned, setScanned] = useState(false); // Estado para rastrear si se ha escaneado un código
-  const [text, setText] = useState('Aún no escaneado'); // Estado para mostrar el texto del código escaneado
+  const [hasPermission, setHasPermission] = useState(null);
+  const [scanned, setScanned] = useState(false);
+  const [text, setText] = useState('Aún no escaneado');
+  const [itemName, setItemName] = useState('');
+  const [scanDateTime, setScanDateTime] = useState('');
 
-  // Función para solicitar permiso de la cámara
-  const askForCameraPermission = () => {
-    (async () => {
-      const { status } = await BarCodeScanner.requestPermissionsAsync(); // Solicita el permiso de la cámara
-      setHasPermission(status === 'granted'); // Actualiza el estado de permiso
-    })();
-  }
+  const askForCameraPermission = async () => {
+    const { status } = await BarCodeScanner.requestPermissionsAsync();
+    setHasPermission(status === 'granted');
+  };
 
-  // Efecto que se ejecuta al cargar la aplicación para solicitar el permiso de la cámara
   useEffect(() => {
     askForCameraPermission();
   }, []);
 
-  // Función que se ejecuta cuando se escanea un código de barras
   const handleBarCodeScanned = ({ type, data }) => {
-    setScanned(true); // Marca que se ha escaneado un código
-    setText(data); // Actualiza el estado de texto con los datos del código escaneado
-    console.log('Type: ' + type + '\nDatos: ' + data); // Muestra información del código en la consola
+    setScanned(true);
+    setText(data);
+    setItemName(''); // Limpia el nombre del artículo para el próximo escaneo
+    setScanDateTime('Fecha y hora: ' + new Date().toLocaleString());
+
+    // Aquí podrías abrir un cuadro de diálogo o una interfaz para que el usuario ingrese el nombre del artículo.
+    // Puedes usar un TextInput y un botón para confirmar la entrada del usuario.
+    // Guarda el nombre del artículo en el estado itemName.
+
+    console.log('Type: ' + type + '\nDatos: ' + data + '\nNombre del artículo: ' + itemName);
+    saveToFile(data, itemName);
   };
 
-  // Comprobación de permisos y renderización de la interfaz
+  const saveToFile = async (data, itemName) => {
+    try {
+      const currentDate = new Date();
+      const fileName = `barcode_data_${itemName}_${currentDate.toISOString()}.txt`;
+      const filePath = `${FileSystem.documentDirectory}${fileName}`;
+
+      await FileSystem.writeAsStringAsync(filePath, data);
+      console.log(`Datos guardados en: ${filePath}`);
+    } catch (error) {
+      console.error('Error al guardar los datos:', error);
+    }
+  };
+
   if (hasPermission === null) {
     return (
       <View style={styles.container}>
         <Text>Solicitando permiso de cámara</Text>
-      </View>)
+      </View>
+    );
   }
   if (hasPermission === false) {
     return (
       <View style={styles.container}>
         <Text style={{ margin: 10 }}>Sin acceso a la cámara</Text>
         <Button title={'Permitir acceso a la cámara'} onPress={() => askForCameraPermission()} />
-      </View>)
+      </View>
+    );
   }
 
-  // Renderización de la vista principal
   return (
     <View style={styles.container}>
       <View style={styles.barcodebox}>
         <BarCodeScanner
-          onBarCodeScanned={scanned ? undefined : handleBarCodeScanned} // Maneja la detección de códigos de barras
-          style={{ height: 400, width: 600 }} />
+          onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
+          style={{ height: 400, width: 600 }}
+        />
       </View>
       <Text style={styles.maintext}>{text}</Text>
-
-      {scanned && <Button title={'Escanear de nuevo?'} onPress={() => setScanned(false)} color='cyan' />}
+      <Text style={styles.maintext}>{scanDateTime}</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Nombre del artículo"
+        onChangeText={(text) => setItemName(text)}
+        value={itemName}
+      />
+      {scanned && <Button title={'Escanear Nuevo'} onPress={() => setScanned(false)} color='cyan' />}
     </View>
   );
 }
 
-// Estilos de la aplicación
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -77,6 +101,14 @@ const styles = StyleSheet.create({
     width: 300,
     overflow: 'hidden',
     borderRadius: 30,
-    backgroundColor: 'cyan'
-  }
+    backgroundColor: 'cyan',
+  },
+  input: {
+    height: 40,
+    borderColor: 'gray',
+    borderWidth: 1,
+    marginBottom: 10,
+    padding: 8,
+    width: 200,
+  },
 });
